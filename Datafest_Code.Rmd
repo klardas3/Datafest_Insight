@@ -1,0 +1,309 @@
+---
+title: "Datafest"
+author: "Kemon Lardas"
+date: "2024-04-12"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r data_import}
+library(tidyverse)
+getwd()
+
+checkpoints_eoc <- read_csv("checkpoints_eoc.csv")
+checkpoints_pulse <- read_csv("checkpoints_pulse.csv")
+items <- read_csv("items.csv")
+media_views <- read_csv("media_views.csv")
+page_views <- read_csv("page_views.csv")
+responses <- read_csv("responses.csv")
+```
+```{r media_eda}
+#Questions
+
+#Which videos had the least proportion of amount of watches?
+prop_watch_amount <- media_views %>%
+    group_by(media_id) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video)) %>%
+    arrange((not_seen))
+
+#Which media had the most proportion of time watched?
+prop_time_watched <- media_views %>%
+    na.omit() %>%
+    group_by(media_id) %>%
+    summarize(prop_time_watched = sum(proportion_video)/length(proportion_video))
+
+
+#If it was a review video, was the proportion of time watched longer and did more people view them?
+
+media_views %>%
+    filter(review_flag == FALSE) #no review videos
+
+#What was the average time for each video
+avg_video_time <- media_views %>%
+    na.omit() %>%
+    mutate(video_spent_time = dt_last_event - dt_started) %>%
+    group_by(media_id) %>%
+    summarize(avg_time_spent = mean(video_spent_time))
+
+media_views %>%
+    na.omit() %>%
+    count(media_id)
+
+avg_video_time %>%
+    inner_join(prop_watch_amount) %>%
+    inner_join(prop_time_watched)
+
+#What section had the most proportion of time watched? The middle of the chapter has least engagement
+media_views %>%
+    na.omit() %>%
+    group_by(section_number) %>%
+    summarize(prop_time_watched = sum(proportion_video)/length(proportion_video))
+
+#As you go through each chapter less and less students are watching the videos
+media_views %>%
+    group_by(section_number) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video)) %>%
+    arrange((not_seen))
+
+media_views %>%
+    group_by(release) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video))
+
+#media_views %>%
+#    na.omit() %>%
+#    mutate(time_started = as.ITime(dt_started))
+
+media_views %>%
+    na.omit() %>%
+    mutate(hours = hour(dt_started)) %>%
+    group_by(hours) %>%
+    summarize(prop_time_watched = sum(proportion_video)/length(proportion_video)) %>%
+    arrange(desc(prop_time_watched))
+
+media_views %>%
+    group_by(chapter_number) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video))
+
+media_views %>%
+    na.omit() %>%
+    group_by(chapter_number) %>%
+    summarize(prop_time_watched = sum(proportion_video)/length(proportion_video))
+
+
+#Which book had the least proportion of watches?
+
+#more people are watching these videos in high school compared to college and for longer proportions
+media_views %>%
+    group_by(book) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video)) %>%
+    ggplot(aes(book, not_seen)) +
+    geom_col(fill = "blue") +
+    coord_flip()
+
+media_views %>%
+    na.omit() %>%
+    group_by(book) %>%
+    summarize(prop_time_watched = sum(proportion_video)/length(proportion_video)) %>%
+    ggplot(aes(book, prop_time_watched)) +
+    geom_col(fill = "blue") +
+    coord_flip()
+
+#which book and version is viewed the most
+media_views %>%
+    group_by(book, release) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video)) %>%
+    arrange(not_seen)
+```
+
+```{r checkpoints_eoc_eda}
+#High school textbook has the worst success in EOC questions
+checkpoints_eoc %>%
+    group_by(book) %>%
+    summarize(correctness = mean(EOC, na.rm = TRUE))
+
+#High school textbook is attempting the most times for EOC questions
+checkpoints_eoc %>%
+    group_by(book) %>%
+    summarise(prop_attempts = sum(n_attempt)/sum(n_possible))
+
+#Students accuracy in answer decreases as you get deeper into the book
+checkpoints_eoc %>%
+    group_by(chapter_number, book) %>%
+    summarize(correctness = mean(EOC, na.rm = TRUE)) %>%
+    arrange(correctness) %>%
+    ggplot(aes(chapter_number, correctness)) +
+    geom_point(aes(color = book))
+
+checkpoints_eoc %>%
+    group_by(class_id, book) %>%
+    summarize(correctness = mean(EOC, na.rm = TRUE)) %>%
+    arrange(desc(correctness))
+
+checkpoints_eoc %>%
+    filter(class_id == "d1175d28-51bb-44af-b4e0-6f7a36c8cc43" | class_id == "1020418a-3eeb-4251-88f7-150c8fe00a56" | class_id == "51711479-441b-4c02-aef7-517aca63a53f") %>%
+    distinct(book)
+    
+checkpoints_eoc %>%
+    filter(class_id == "1cca9f91-5c4a-4e1a-8e0e-293b070dfd6f" | class_id == "9bdf8bfc-9998-4fd8-85d2-70c91cf94891" | class_id == "52619962-72f6-4716-9c64-1c06fe10f739") %>%
+    distinct(book)
+```
+```{r responses_eda}
+responses %>%
+    distinct(book) 
+
+responses %>%
+    count(lrn_type)
+
+responses %>%
+    group_by(review_flag) %>%
+    summarize(grade = sum(points_earned, na.rm = TRUE)/sum(points_possible, na.rm = TRUE))
+
+responses %>%
+    group_by(lrn_type) %>%
+    summarize(grade = sum(points_earned, na.rm = TRUE)/sum(points_possible, na.rm = TRUE)) %>%
+    arrange(desc(grade))
+
+ggplot(responses, aes(factor(chapter_number), fill = lrn_type)) +
+    geom_bar()
+
+responses %>%
+    filter(item_type == "code" & response == prompt)
+
+responses %>%
+    filter(item_type == "code")
+
+responses %>%
+    filter(chapter_number == 9)
+```
+
+```{r page_views}
+page_views %>%
+    group_by(page) %>%
+    summarize(avg_off_page = mean(off_page_long, na.rm = TRUE)) %>%
+    mutate(avg_off_page = avg_off_page / 1000 / 60) %>%
+    arrange(desc(avg_off_page))
+
+page_views %>%
+    distinct(book)
+
+page_views %>%
+    group_by(book, release) %>%
+    summarize(avg_engaged = mean(engaged, na.rm = TRUE)) %>%
+    arrange(desc(avg_engaged)) %>%
+    mutate(avg_engaged = avg_engaged / 1000)
+```
+
+```{r presentation}
+#Which book had the least proportion of watches?
+
+#more people are watching these videos in high school compared to college and for longer proportions
+media_views %>%
+    group_by(book) %>%
+    summarize(not_seen = sum(is.na(proportion_video))/length(proportion_video)) %>%
+    ggplot(aes(book, not_seen)) +
+    geom_col(fill = "blue") +
+    coord_flip() +
+    labs(
+        x = "Book",
+        y = "Proportion of Videos Not Seen",
+        title = "HS Data Science Watched the Most Videos"
+    )
+
+ggsave("Prop_videos.pdf")
+
+media_views %>%
+    na.omit() %>%
+    group_by(book) %>%
+    summarize(prop_time_watched = sum(proportion_video)/length(proportion_video)) %>%
+    ggplot(aes(book, prop_time_watched)) +
+    geom_col(fill = "blue") +
+    coord_flip()+
+    labs(
+        x = "Book",
+        y = "Proportion of Video Time Watched",
+        title = "HS Data Science Had the Largest Prop."
+    )
+
+#Students accuracy in answer decreases as you get deeper into the book
+checkpoints_eoc %>%
+    filter(book != "High School / Advanced Statistics and Data Science I (ABC)") %>%
+    group_by(chapter_number, book) %>%
+    summarize(correctness = mean(EOC, na.rm = TRUE)) %>%
+    arrange(correctness) %>%
+    ggplot(aes(chapter_number, correctness, group = book)) +
+    geom_point(aes(color = book)) + 
+    facet_grid(~ book) +
+    geom_smooth(method = lm, aes(color = book), se = FALSE) +
+    labs(
+        x = "Chapter Number",
+        y = "Percent of EOC Correct",
+        title = "Negative Linear Relationship Between Chapter # and Correctness"
+    )
+
+ggsave("eoc.pdf")
+
+ggplot(responses, aes(factor(chapter_number), fill = lrn_type)) +
+    geom_bar() +
+    labs(
+        x = "Chapter Number",
+        y = "Amount of Questions",
+        title = "Majority of Chapters Use MC and Code (NA) Questions"
+    )
+
+ggsave("Learntype.pdf")
+
+```
+
+```{r pulse}
+checkpoints_pulse %>%
+    filter(construct == "Utility Value") %>%
+    na.omit() %>%
+    mutate(chapter_number = chapter_number - 1,
+           disagree = if_else(response == 0 | response == 1 | response == 2, TRUE, FALSE)) %>%
+    group_by(chapter_number) %>%
+    summarize(
+        prop_disagreed = mean(disagree) * 100
+    ) %>%
+    arrange(desc(prop_disagreed))
+
+checkpoints_pulse %>%
+    distinct(construct)
+
+checkpoints_pulse %>%
+    filter(construct == "Expectancy") %>%
+    na.omit() %>%
+    mutate(chapter_number = chapter_number - 1,
+           disagree = if_else(response == 0 | response == 1 | response == 2, TRUE, FALSE)) %>%
+    group_by(chapter_number) %>%
+    summarize(
+        prop_disagreed = mean(disagree) * 100
+    ) %>%
+    arrange(desc(prop_disagreed))
+
+
+checkpoints_pulse %>%
+    filter(construct == "Cost") %>%
+    na.omit() %>%
+    mutate(chapter_number = chapter_number - 1,
+           disagree = if_else(response == 0 | response == 1 | response == 2, TRUE, FALSE)) %>%
+    group_by(chapter_number) %>%
+    summarize(
+        prop_disagreed = mean(disagree) * 100
+    ) %>%
+    arrange(desc(prop_disagreed))
+
+checkpoints_pulse %>%
+    group_by(chapter_number) %>%
+    summarize(
+        did_not_respond = sum(is.na(response))/length(response)
+    ) %>%
+    arrange(desc(did_not_respond)) %>%
+    ggplot(aes(factor(chapter_number), did_not_respond)) +
+    geom_col() +
+    labs(
+        x = "Chapter Number",
+        y = "Proportion Who Did Not Respond",
+        title = "Later Chapters Did Not Respond to Pulse Questions as Much as Earlier Chapters"
+    )
+````
